@@ -1,6 +1,6 @@
 {
   "name": "1Password",
-  "version": "1.0.2",
+  "version": "1.1.0",
   "description": "Securely work with 1Password through the op CLI. Manages secrets using op:// references without exposing plaintext values.",
   "author": {
     "name": "Stuart A. Malone",
