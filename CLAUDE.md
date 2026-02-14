@@ -103,9 +103,11 @@ These protections help prevent accidental exposure of secrets through version co
 
 ### Common Commands
 
-- `npm run build` - Compile TypeScript to JavaScript
+- `npm run build` - Compile TypeScript to JavaScript (build directory is committed)
 - `npm run dev` - Watch mode compilation
 - `npm start` - Run the MCP server
+
+**Note**: The `build/` directory is committed to the repository for easy plugin distribution. After making changes to TypeScript source files, run `npm run build` and commit the updated build files.
 
 ### Version Bumping
 
