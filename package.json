@@ -1,13 +1,13 @@
 {
   "name": "claude-1password-plugin",
-  "version": "1.1.1",
+  "version": "1.1.2",
   "description": "Claude Code MCP server for 1Password CLI integration",
   "type": "module",
   "bin": {
     "claude-1password-mcp": "./build/index.js"
   },
   "scripts": {
-    "build": "tsc && chmod 755 build/index.js",
+    "build": "tsc && esbuild build/index.js --bundle --platform=node --format=esm --outfile=build/index.bundled.js && mv build/index.bundled.js build/index.js && chmod 755 build/index.js",
     "dev": "tsc --watch",
     "start": "node build/index.js"
   },
@@ -21,6 +21,7 @@
   },
   "devDependencies": {
     "@types/node": "^22.0.0",
+    "esbuild": "^0.27.3",
     "typescript": "^5.7.0"
   }
 }
