@@ -16,5 +16,6 @@
     "security",
     "mcp"
   ],
+  "setup": "npm install && npm run build",
   "mcpServers": "./.mcp.json"
 }
