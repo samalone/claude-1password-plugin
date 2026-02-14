@@ -1,13 +1,20 @@
 {
-  "name": "1password",
-  "version": "1.0.0",
+  "name": "1Password",
+  "version": "1.0.1",
   "description": "Securely work with 1Password through the op CLI. Manages secrets using op:// references without exposing plaintext values.",
   "author": {
-    "name": "Sam Alone",
+    "name": "Stuart A. Malone",
     "url": "https://github.com/samalone"
   },
   "repository": "https://github.com/samalone/claude-1password-plugin",
   "license": "MIT",
-  "keywords": ["1password", "secrets", "credentials", "password-manager", "security", "mcp"],
+  "keywords": [
+    "1Password",
+    "secrets",
+    "credentials",
+    "password-manager",
+    "security",
+    "mcp"
+  ],
   "mcpServers": "./.mcp.json"
 }

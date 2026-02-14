@@ -87,7 +87,29 @@ When implementing plugin tools:
 ### Prerequisites
 - 1Password CLI installed and configured (`op signin`)
 - 1Password app integration enabled for biometric auth
-- Node.js/TypeScript environment (to be established)
+- Node.js/TypeScript environment
+- `semver` CLI tool for version management (`brew install semver` on macOS)
+
+### Common Commands
+
+- `npm run build` - Compile TypeScript to JavaScript
+- `npm run dev` - Watch mode compilation
+- `npm start` - Run the MCP server
+
+### Version Bumping
+
+Use VSCode tasks (Cmd/Ctrl+Shift+P → "Tasks: Run Task") to update both `package.json` and `.claude-plugin/plugin.json`:
+
+- **Bump Major Version** - 1.0.0 → 2.0.0 (breaking changes)
+- **Bump Minor Version** - 1.0.0 → 1.1.0 (new features)
+- **Bump Patch Version** - 1.0.0 → 1.0.1 (bug fixes, default task)
+
+Manual update requires updating both files:
+
+```bash
+npm version [major|minor|patch] --no-git-tag-version
+# Then manually update version in .claude-plugin/plugin.json
+```
 
 ### Testing Strategy
 - Use a dedicated test vault (`test-vault`) for development
