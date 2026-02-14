@@ -8,6 +8,7 @@ import { promisify } from "node:util";
 import { readFile, writeFile, access, chmod } from "node:fs/promises";
 import { dirname, basename, resolve, relative } from "node:path";
 import { existsSync } from "node:fs";
+import ignore from "ignore";
 
 const execFileAsync = promisify(execFile);
 
@@ -133,55 +134,18 @@ async function findProjectRoot(startPath: string): Promise<string> {
 }
 
 /**
- * Simple gitignore pattern matching
- */
-function matchesGitignorePattern(filePath: string, pattern: string, projectRoot: string): boolean {
-  // Remove comments and whitespace
-  pattern = pattern.split('#')[0].trim();
-  if (!pattern) return false;
-
-  // Handle negation (for completeness, though we don't use it for our checks)
-  if (pattern.startsWith('!')) return false;
-
-  // Convert relative file path from project root
-  const relPath = relative(projectRoot, resolve(filePath));
-
-  // Exact match
-  if (relPath === pattern) return true;
-
-  // Directory match (pattern ending with /)
-  if (pattern.endsWith('/') && relPath.startsWith(pattern)) return true;
-
-  // Simple wildcard matching
-  if (pattern.includes('*')) {
-    const regexPattern = pattern
-      .replace(/\./g, '\\.')
-      .replace(/\*\*/g, '§§') // Temporary marker for **
-      .replace(/\*/g, '[^/]*')
-      .replace(/§§/g, '.*');
-
-    const regex = new RegExp(`^${regexPattern}$`);
-    if (regex.test(relPath)) return true;
-
-    // Also check basename match for patterns without /
-    if (!pattern.includes('/') && regex.test(basename(relPath))) return true;
-  }
-
-  // Basename match for patterns without directory separators
-  if (!pattern.includes('/') && basename(relPath) === pattern) return true;
-
-  return false;
-}
-
-/**
  * Check if a file is matched by any pattern in an ignore file
+ * Uses the 'ignore' library for accurate gitignore pattern matching
  */
 async function isFileIgnored(filePath: string, ignoreFilePath: string, projectRoot: string): Promise<boolean> {
   try {
     const content = await readFile(ignoreFilePath, 'utf-8');
-    const patterns = content.split('\n');
+    const ig = ignore().add(content);
 
-    return patterns.some(pattern => matchesGitignorePattern(filePath, pattern, projectRoot));
+    // Get relative path from project root
+    const relPath = relative(projectRoot, resolve(filePath));
+
+    return ig.ignores(relPath);
   } catch {
     return false;
   }
