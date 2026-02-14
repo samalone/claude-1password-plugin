@@ -5,6 +5,9 @@ import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js"
 import { z } from "zod";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
+import { readFile, writeFile, access, chmod } from "node:fs/promises";
+import { dirname, basename, resolve, relative } from "node:path";
+import { existsSync } from "node:fs";
 
 const execFileAsync = promisify(execFile);
 
@@ -87,6 +90,217 @@ function errorResult(message: string) {
     content: [{ type: "text" as const, text: message }],
     isError: true,
   };
+}
+
+// ---------------------------------------------------------------------------
+// Secret Safety Helpers
+// ---------------------------------------------------------------------------
+
+/**
+ * Check if we're in a git repository by looking for .git directory
+ */
+async function isGitRepository(startPath: string): Promise<boolean> {
+  let currentPath = resolve(startPath);
+  const root = dirname(currentPath);
+
+  while (currentPath !== root) {
+    try {
+      await access(resolve(currentPath, ".git"));
+      return true;
+    } catch {
+      currentPath = dirname(currentPath);
+    }
+  }
+  return false;
+}
+
+/**
+ * Find the git/project root directory containing .git or starting from cwd
+ */
+async function findProjectRoot(startPath: string): Promise<string> {
+  let currentPath = resolve(startPath);
+  const root = dirname(currentPath);
+
+  while (currentPath !== root) {
+    try {
+      await access(resolve(currentPath, ".git"));
+      return currentPath;
+    } catch {
+      currentPath = dirname(currentPath);
+    }
+  }
+  return resolve(startPath);
+}
+
+/**
+ * Simple gitignore pattern matching
+ */
+function matchesGitignorePattern(filePath: string, pattern: string, projectRoot: string): boolean {
+  // Remove comments and whitespace
+  pattern = pattern.split('#')[0].trim();
+  if (!pattern) return false;
+
+  // Handle negation (for completeness, though we don't use it for our checks)
+  if (pattern.startsWith('!')) return false;
+
+  // Convert relative file path from project root
+  const relPath = relative(projectRoot, resolve(filePath));
+
+  // Exact match
+  if (relPath === pattern) return true;
+
+  // Directory match (pattern ending with /)
+  if (pattern.endsWith('/') && relPath.startsWith(pattern)) return true;
+
+  // Simple wildcard matching
+  if (pattern.includes('*')) {
+    const regexPattern = pattern
+      .replace(/\./g, '\\.')
+      .replace(/\*\*/g, '§§') // Temporary marker for **
+      .replace(/\*/g, '[^/]*')
+      .replace(/§§/g, '.*');
+
+    const regex = new RegExp(`^${regexPattern}$`);
+    if (regex.test(relPath)) return true;
+
+    // Also check basename match for patterns without /
+    if (!pattern.includes('/') && regex.test(basename(relPath))) return true;
+  }
+
+  // Basename match for patterns without directory separators
+  if (!pattern.includes('/') && basename(relPath) === pattern) return true;
+
+  return false;
+}
+
+/**
+ * Check if a file is matched by any pattern in an ignore file
+ */
+async function isFileIgnored(filePath: string, ignoreFilePath: string, projectRoot: string): Promise<boolean> {
+  try {
+    const content = await readFile(ignoreFilePath, 'utf-8');
+    const patterns = content.split('\n');
+
+    return patterns.some(pattern => matchesGitignorePattern(filePath, pattern, projectRoot));
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Add a pattern to an ignore file if it doesn't already exist
+ */
+async function addToIgnoreFile(ignoreFilePath: string, pattern: string, comment?: string): Promise<void> {
+  let content = '';
+  try {
+    content = await readFile(ignoreFilePath, 'utf-8');
+  } catch {
+    // File doesn't exist, will create it
+  }
+
+  // Check if pattern already exists
+  if (content.split('\n').some(line => line.trim() === pattern)) {
+    return; // Pattern already exists
+  }
+
+  // Add pattern with optional comment
+  const lines = content.split('\n');
+  const lastLine = lines[lines.length - 1];
+
+  // Ensure file ends with newline before adding
+  const prefix = content && !lastLine.match(/^\s*$/) ? '\n' : '';
+  const commentLine = comment ? `\n# ${comment}\n` : '\n';
+  const newContent = content + prefix + commentLine + pattern + '\n';
+
+  await writeFile(ignoreFilePath, newContent, 'utf-8');
+}
+
+/**
+ * Check if path is in a common cloud sync directory
+ */
+function isInSyncDirectory(filePath: string): { inSync: boolean; service?: string } {
+  const normalized = resolve(filePath).toLowerCase();
+  const syncDirs = [
+    { pattern: '/dropbox/', service: 'Dropbox' },
+    { pattern: '/google drive/', service: 'Google Drive' },
+    { pattern: '/onedrive/', service: 'OneDrive' },
+    { pattern: '/icloud drive/', service: 'iCloud Drive' },
+    { pattern: '/library/mobile documents/', service: 'iCloud' },
+    { pattern: '/box sync/', service: 'Box' },
+  ];
+
+  for (const { pattern, service } of syncDirs) {
+    if (normalized.includes(pattern)) {
+      return { inSync: true, service };
+    }
+  }
+
+  return { inSync: false };
+}
+
+/**
+ * Ensure output file from op-inject is protected from accidental exposure
+ */
+async function ensureSecretFileSafety(outputFile: string): Promise<string[]> {
+  const warnings: string[] = [];
+  const absPath = resolve(outputFile);
+  const fileDir = dirname(absPath);
+  const fileName = basename(absPath);
+
+  // Check if in sync directory
+  const syncCheck = isInSyncDirectory(absPath);
+  if (syncCheck.inSync) {
+    warnings.push(`⚠️  WARNING: Output file is in ${syncCheck.service} sync directory. Secrets may sync to cloud.`);
+  }
+
+  // Find project root
+  const projectRoot = await findProjectRoot(fileDir);
+  const isGit = await isGitRepository(fileDir);
+  const gitignorePath = resolve(projectRoot, '.gitignore');
+  const claudeignorePath = resolve(projectRoot, '.claudeignore');
+
+  // Strategy: prefer .gitignore if in git repo or .gitignore exists
+  if (isGit || existsSync(gitignorePath)) {
+    const isIgnored = await isFileIgnored(absPath, gitignorePath, projectRoot);
+
+    if (!isIgnored) {
+      // Determine best pattern to add
+      const relPath = relative(projectRoot, absPath);
+      const pattern = relPath.includes('/') ? relPath : fileName;
+
+      await addToIgnoreFile(
+        gitignorePath,
+        pattern,
+        'Secret files with injected 1Password values'
+      );
+      warnings.push(`✓ Added "${pattern}" to .gitignore to prevent secret exposure`);
+    }
+  } else {
+    // Not a git repo and no .gitignore, use .claudeignore
+    const isIgnored = await isFileIgnored(absPath, claudeignorePath, projectRoot);
+
+    if (!isIgnored) {
+      const relPath = relative(projectRoot, absPath);
+      const pattern = relPath.includes('/') ? relPath : fileName;
+
+      await addToIgnoreFile(
+        claudeignorePath,
+        pattern,
+        'Secret files with injected 1Password values'
+      );
+      warnings.push(`✓ Added "${pattern}" to .claudeignore to prevent secret exposure`);
+    }
+  }
+
+  // Set restrictive file permissions (owner read/write only)
+  try {
+    await chmod(absPath, 0o600);
+    warnings.push(`✓ Set restrictive permissions (600) on ${fileName}`);
+  } catch (e) {
+    warnings.push(`⚠️  Could not set restrictive permissions on ${fileName}: ${e instanceof Error ? e.message : String(e)}`);
+  }
+
+  return warnings;
 }
 
 // ---------------------------------------------------------------------------
@@ -448,7 +662,7 @@ server.registerTool(
   {
     title: "Inject Secrets into Template",
     description:
-      "Inject secrets into a template file using {{ op://vault/item/field }} placeholders. The output file will contain resolved secrets but its contents are never returned.",
+      "Inject secrets into a template file using {{ op://vault/item/field }} placeholders. The output file will contain resolved secrets but its contents are never returned. Automatically adds the output file to .gitignore or .claudeignore and sets restrictive permissions to prevent accidental secret exposure.",
     inputSchema: {
       inputFile: z
         .string()
@@ -462,14 +676,23 @@ server.registerTool(
   },
   async ({ inputFile, outputFile, account }) => {
     try {
+      // Run the inject command
       const args = prependAccount(
         ["inject", "-i", inputFile, "-o", outputFile],
         account
       );
       await runOp(args);
-      return textResult(
-        `Secrets injected successfully: ${inputFile} -> ${outputFile}`
-      );
+
+      // Ensure the output file is protected from accidental exposure
+      const warnings = await ensureSecretFileSafety(outputFile);
+
+      const message = [
+        `✓ Secrets injected successfully: ${inputFile} -> ${outputFile}`,
+        '',
+        ...warnings
+      ].join('\n');
+
+      return textResult(message);
     } catch (e: unknown) {
       return errorResult(e instanceof Error ? e.message : String(e));
     }

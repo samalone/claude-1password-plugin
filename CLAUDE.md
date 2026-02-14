@@ -72,6 +72,17 @@ When implementing plugin tools:
 4. **Read Operations**: Return only secret references by default; require explicit user confirmation to reveal values
 5. **Template Operations**: Use `op inject` to populate templates without exposing secrets in transit
 
+### Automatic Secret Protection (op-inject)
+
+The `op-inject` tool automatically protects output files containing injected secrets:
+
+- **Gitignore Protection**: If in a git repository or `.gitignore` exists, adds output file to `.gitignore`
+- **Claudeignore Protection**: If no git repository, adds output file to `.claudeignore`
+- **File Permissions**: Sets output file permissions to `600` (owner read/write only)
+- **Cloud Sync Warning**: Warns if output file is in a cloud sync directory (Dropbox, iCloud, etc.)
+
+These protections help prevent accidental exposure of secrets through version control, Claude's context window, or cloud synchronization.
+
 ### Output Format
 - Use `--format json` for machine-readable output
 - Parse JSON responses to extract metadata while filtering secret fields
