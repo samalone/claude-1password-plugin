@@ -9,6 +9,5 @@
   "repository": "https://github.com/samalone/claude-1password-plugin",
   "license": "MIT",
   "keywords": ["1password", "secrets", "credentials", "password-manager", "security", "mcp"],
-  "mcpServers": "./.mcp.json",
-  "setup": "npm install && npm run build"
+  "mcpServers": "./.mcp.json"
 }
