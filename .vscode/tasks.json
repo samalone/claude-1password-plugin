@@ -4,7 +4,7 @@
     {
       "label": "Bump Major Version",
       "type": "shell",
-      "command": "CURRENT=$(node -p \"require('./package.json').version\") && NEW=$(semver -i major $CURRENT) && npm version $NEW --no-git-tag-version && node -e \"const fs=require('fs');const p='./.claude-plugin/plugin.json';const d=JSON.parse(fs.readFileSync(p));d.version='$NEW';fs.writeFileSync(p,JSON.stringify(d,null,2)+'\\n')\" && echo \"Version bumped from $CURRENT to $NEW (updated package.json and plugin.json)\"",
+      "command": "./scripts/bump-version.sh major",
       "problemMatcher": [],
       "presentation": {
         "echo": true,
@@ -22,7 +22,7 @@
     {
       "label": "Bump Minor Version",
       "type": "shell",
-      "command": "CURRENT=$(node -p \"require('./package.json').version\") && NEW=$(semver -i minor $CURRENT) && npm version $NEW --no-git-tag-version && node -e \"const fs=require('fs');const p='./.claude-plugin/plugin.json';const d=JSON.parse(fs.readFileSync(p));d.version='$NEW';fs.writeFileSync(p,JSON.stringify(d,null,2)+'\\n')\" && echo \"Version bumped from $CURRENT to $NEW (updated package.json and plugin.json)\"",
+      "command": "./scripts/bump-version.sh minor",
       "problemMatcher": [],
       "presentation": {
         "echo": true,
@@ -40,7 +40,7 @@
     {
       "label": "Bump Patch Version",
       "type": "shell",
-      "command": "CURRENT=$(node -p \"require('./package.json').version\") && NEW=$(semver -i patch $CURRENT) && npm version $NEW --no-git-tag-version && node -e \"const fs=require('fs');const p='./.claude-plugin/plugin.json';const d=JSON.parse(fs.readFileSync(p));d.version='$NEW';fs.writeFileSync(p,JSON.stringify(d,null,2)+'\\n')\" && echo \"Version bumped from $CURRENT to $NEW (updated package.json and plugin.json)\"",
+      "command": "./scripts/bump-version.sh patch",
       "problemMatcher": [],
       "presentation": {
         "echo": true,
